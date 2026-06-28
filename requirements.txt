@@ -1,0 +1,10 @@
+# torch is installed separately from the CUDA wheel index in the Dockerfile.
+pruna
+diffusers>=0.27
+transformers
+accelerate
+safetensors
+sentencepiece
+pillow
+fastapi
+uvicorn[standard]
