@@ -1,0 +1,10 @@
+# Orchestrator service deps — CPU only, deliberately excludes torch/diffusers/pruna.
+pydantic>=2
+httpx
+anthropic
+fastapi
+uvicorn[standard]
+pyyaml
+# dev/test
+pytest
+pytest-asyncio
