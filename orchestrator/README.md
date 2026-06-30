@@ -69,6 +69,36 @@ curl -s localhost:8001/goal -H 'content-type: application/json' -d '{
 Endpoints: `GET /health`, `GET /skills`, `POST/GET /characters`,
 `POST/GET /locations`, `POST /plan`, `POST /goal`, `GET /artifacts/{name}`.
 
+## Studio — goal-driven execution UI
+
+`studio/` (repo root) is a React + Vite + TypeScript app: enter a goal plus a cast
+of Characters/Locations (with uploaded reference images) and a tone, approve the
+proposed plan, then watch execution as a **live vertical timeline** of humanized
+step messages with **inline human-in-the-loop approvals** (Keep / Regenerate /
+elicited choices) and **expandable inline artifacts** (image, multi-image
+carousel of regenerate attempts, video/audio players; each opens full-view).
+
+It is powered by a streaming run API layered on the executor (callbacks default
+off, so the batch `POST /goal` and the test suite are unaffected):
+
+- `POST /runs` → `{run_id}` — start a run (background task: plan → approve → execute)
+- `GET /runs/{id}/events` — SSE timeline (`id:`/`event:`, `lastEventId` replay, heartbeats)
+- `POST /runs/{id}/respond {request_id, choice_id}` — resolve a HITL gate
+- `POST /entities/{id}/upload-reference`, `POST /characters/upload` — uploaded reference images (casting then skips generation)
+
+```bash
+# dev (two terminals)
+PLANNER_MODE=heuristic uvicorn orchestrator.app:app --port 8001
+cd studio && npm install && npm run dev          # http://localhost:5173 (proxies to :8001)
+
+# prod: build the SPA; FastAPI serves studio/dist at /
+cd studio && npm run build
+uvicorn orchestrator.app:app --port 8001         # http://localhost:8001
+```
+
+Image rendering works fully offline (fakes are valid PNGs); video/audio playback
+needs a real backend (`PRUNA_URL`, or `RUNWAYML_API_SECRET` + `PUBLIC_BASE_URL`).
+
 ## Configuration
 
 | Var | Default | Meaning |

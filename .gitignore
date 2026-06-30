@@ -9,3 +9,9 @@ venv/
 # Orchestrator runtime data
 /tmp/rockbox-artifacts/
 data/artifacts/
+
+# Studio frontend
+studio/node_modules/
+studio/dist/
+studio/.vite/
+studio/*.tsbuildinfo

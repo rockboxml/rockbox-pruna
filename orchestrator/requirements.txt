@@ -4,6 +4,7 @@ httpx
 anthropic
 fastapi
 uvicorn[standard]
+python-multipart
 pyyaml
 # dev/test
 pytest

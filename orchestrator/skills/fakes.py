@@ -65,11 +65,11 @@ class FakeVideoSkill(Skill):
 
     async def run(self, inputs, params, entities, store: ArtifactStore):
         img = inputs.get("image")
-        seed = _fingerprint(
-            "video", img.id if img else "", str(params.get("prompt", ""))
+        fp = _fingerprint(
+            "video", img.id if img else "", str(params.get("prompt", "")), str(params.get("seed"))
         )
         artifact = store.put_bytes(
-            b"FAKEVIDEO" + seed, MediaType.VIDEO, meta={"from_image": img.id if img else None}
+            b"FAKEVIDEO" + fp, MediaType.VIDEO, meta={"from_image": img.id if img else None}
         )
         return {"video": artifact}
 
@@ -101,10 +101,11 @@ class FakeTTSSkill(Skill):
 
     async def run(self, inputs, params, entities, store: ArtifactStore):
         voice = inputs.get("voice")
-        seed = _fingerprint(
-            "audio", str(params.get("text", "")), voice.id if voice else str(params.get("voice_id", ""))
+        fp = _fingerprint(
+            "audio", str(params.get("text", "")),
+            voice.id if voice else str(params.get("voice_id", "")), str(params.get("seed")),
         )
-        artifact = store.put_bytes(b"FAKEAUDIO" + seed, MediaType.AUDIO, meta={"text": params.get("text")})
+        artifact = store.put_bytes(b"FAKEAUDIO" + fp, MediaType.AUDIO, meta={"text": params.get("text")})
         return {"audio": artifact}
 
 

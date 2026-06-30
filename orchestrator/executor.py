@@ -12,9 +12,13 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
+from typing import Awaitable, Callable
 
 from .artifacts import ArtifactStore
 from .entities import Entity, EntityStore
+from .events import Choice, EventType, HitlDecision, HitlRequest
+from .humanize import humanize
 from .models import (
     ExecutionResult,
     Goal,
@@ -27,6 +31,15 @@ from .models import (
 from .planner.validate import topo_order
 from .skills.registry import SkillRegistry
 
+# A streaming sink: receives a dict of Event kwargs (the run layer adds seq/run_id).
+EventSink = Callable[[dict], Awaitable[None]]
+# A HITL bridge: raises a request, returns the user's decision.
+HitlBridge = Callable[[HitlRequest], Awaitable[HitlDecision]]
+
+
+async def _noop_event(_: dict) -> None:  # default sink — keeps behavior unchanged
+    return None
+
 
 async def execute(
     plan: Plan,
@@ -37,8 +50,18 @@ async def execute(
     max_retries: int = 2,
     concurrency: int = 4,
     backoff_base: float = 0.2,
+    on_event: EventSink | None = None,
+    hitl: HitlBridge | None = None,
+    hitl_policy: str = "off",
 ) -> ExecutionResult:
-    """Execute ``plan`` and return an :class:`ExecutionResult`."""
+    """Execute ``plan`` and return an :class:`ExecutionResult`.
+
+    ``on_event`` / ``hitl`` default to ``None`` so existing callers (and tests) get
+    the original synchronous behavior. When supplied, the executor streams
+    per-step events and pauses for human approval per ``hitl_policy``
+    (``off`` | ``per_artifact`` | ``final``).
+    """
+    emit = on_event or _noop_event
     order = topo_order(plan)
     steps = {s.id: s for s in plan.steps}
     deps = _dependencies(plan)
@@ -64,11 +87,18 @@ async def execute(
                     status=StepStatus.SKIPPED,
                     error=f"upstream step '{failed_dep}' did not succeed",
                 )
+                await emit({
+                    "type": EventType.STEP_COMPLETED, "step_id": step_id,
+                    "skill_id": step.skill_id, "status": "skipped",
+                    "message": f"Skipped — “{failed_dep}” did not succeed.",
+                })
                 return
             async with sem:
                 results[step_id] = await _run_step(
                     step, plan.goal, registry, store, entity_store, outputs,
                     max_retries=max_retries, backoff_base=backoff_base,
+                    emit=emit, hitl=hitl, hitl_policy=hitl_policy,
+                    final_step=plan.final_step,
                 )
                 if results[step_id].status == StepStatus.OK:
                     outputs[step_id] = results[step_id].outputs
@@ -95,41 +125,127 @@ async def _run_step(
     *,
     max_retries: int,
     backoff_base: float,
+    emit: EventSink = _noop_event,
+    hitl: HitlBridge | None = None,
+    hitl_policy: str = "off",
+    final_step: str | None = None,
 ) -> StepResult:
     skill = registry.get(step.skill_id)
     spec = skill.spec
     inputs = _resolve_inputs(step, spec, goal, outputs)
     entities = _resolve_entities(step, entity_store)
 
+    await emit({
+        "type": EventType.STEP_STARTED, "step_id": step.id, "skill_id": step.skill_id,
+        "status": "running", "message": humanize(step.skill_id, "start", rationale=step.rationale),
+    })
+
     started = time.monotonic()
+    params = dict(step.params)
+    produced, attempt, last_err = await _run_with_retry(
+        skill, spec, inputs, params, entities, store,
+        max_retries=max_retries, backoff_base=backoff_base,
+    )
+
+    if produced is None:
+        await emit({
+            "type": EventType.STEP_COMPLETED, "step_id": step.id, "skill_id": step.skill_id,
+            "status": "error", "message": humanize(step.skill_id, "error"),
+        })
+        return StepResult(
+            step_id=step.id, skill_id=step.skill_id, status=StepStatus.ERROR,
+            error=f"{type(last_err).__name__}: {last_err}",
+            attempts=attempt, duration_s=time.monotonic() - started,
+        )
+
+    # Stream the produced artifact(s), then optionally pause for human review.
+    history: dict[str, list[MediaArtifact]] = {p: [a] for p, a in produced.items()}
+    await _emit_artifacts(emit, step, produced, history, store)
+
+    if hitl is not None and _should_pause(spec, hitl_policy, step.id, final_step):
+        produced = await _hitl_loop(
+            step, spec, skill, inputs, params, entities, store, produced, history, emit, hitl,
+        )
+
+    await emit({
+        "type": EventType.STEP_COMPLETED, "step_id": step.id, "skill_id": step.skill_id,
+        "status": "done", "message": humanize(step.skill_id, "done", rationale=step.rationale),
+    })
+    return StepResult(
+        step_id=step.id, skill_id=step.skill_id, status=StepStatus.OK,
+        outputs=produced, attempts=attempt, duration_s=time.monotonic() - started,
+    )
+
+
+async def _run_with_retry(skill, spec, inputs, params, entities, store, *, max_retries, backoff_base):
+    """Run a skill with backoff. Returns (produced|None, attempts, last_error)."""
     attempt = 0
     last_err: Exception | None = None
     while attempt <= max_retries:
         attempt += 1
         try:
-            produced = await skill.run(inputs, dict(step.params), entities, store)
+            produced = await skill.run(inputs, dict(params), entities, store)
             _check_outputs(spec, produced)
-            return StepResult(
-                step_id=step.id,
-                skill_id=step.skill_id,
-                status=StepStatus.OK,
-                outputs=produced,
-                attempts=attempt,
-                duration_s=time.monotonic() - started,
-            )
+            return produced, attempt, None
         except Exception as exc:  # noqa: BLE001 - record and (maybe) retry
             last_err = exc
             if attempt <= max_retries:
                 await asyncio.sleep(backoff_base * (2 ** (attempt - 1)))
+    return None, attempt, last_err
 
-    return StepResult(
-        step_id=step.id,
-        skill_id=step.skill_id,
-        status=StepStatus.ERROR,
-        error=f"{type(last_err).__name__}: {last_err}",
-        attempts=attempt,
-        duration_s=time.monotonic() - started,
-    )
+
+def _should_pause(spec, policy: str, step_id: str, final_step: str | None) -> bool:
+    if policy == "per_artifact":
+        return bool(spec.outputs)
+    if policy == "final":
+        return step_id == final_step
+    return False
+
+
+async def _hitl_loop(step, spec, skill, inputs, params, entities, store, produced, history, emit, hitl):
+    """Pause after producing an artifact: Keep it, or Regenerate (carousel of attempts)."""
+    out_port = spec.outputs[0].name
+    nonce = 0
+    while True:
+        decision = await hitl(HitlRequest(
+            request_id=uuid.uuid4().hex, step_id=step.id, skill_id=step.skill_id,
+            kind="artifact_approval", prompt="Keep this result, or regenerate?",
+            choices=[
+                Choice(id="keep", label="Keep", kind="keep"),
+                Choice(id="regenerate", label="Regenerate", kind="regenerate"),
+            ],
+            artifact=store.payload(produced[out_port]),
+        ))
+        if decision.choice_id != "regenerate":
+            return produced
+        # Vary the output so content-addressed backends don't reproduce the same bytes.
+        nonce += 1
+        params = {**params, "seed": _nonce_seed(params.get("seed"), nonce)}
+        regenerated, _attempt, err = await _run_with_retry(
+            skill, spec, inputs, params, entities, store, max_retries=0, backoff_base=0.0,
+        )
+        if regenerated is None:
+            # Regeneration failed; keep the last good result rather than abort the run.
+            return produced
+        produced = regenerated
+        for port, art in produced.items():
+            history.setdefault(port, []).append(art)
+        await _emit_artifacts(emit, step, produced, history, store)
+
+
+def _nonce_seed(existing, nonce: int) -> int:
+    base = existing if isinstance(existing, int) else 0
+    return base + nonce * 7919  # deterministic, no RNG (keeps runs reproducible)
+
+
+async def _emit_artifacts(emit, step, produced, history, store) -> None:
+    for port, art in produced.items():
+        attempts = history.get(port, [art])
+        await emit({
+            "type": EventType.STEP_ARTIFACT, "step_id": step.id, "skill_id": step.skill_id,
+            "status": "running", "artifact": store.payload(art),
+            "data": {"port": port, "attempts": [store.payload(a) for a in attempts]},
+        })
 
 
 def _resolve_inputs(step, spec, goal: Goal, outputs) -> dict[str, MediaArtifact]:

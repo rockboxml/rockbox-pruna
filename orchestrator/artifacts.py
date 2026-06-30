@@ -100,8 +100,26 @@ class ArtifactStore:
         b64 = base64.b64encode(data).decode()
         return f"data:{mime};base64,{b64}"
 
+    def url_path(self, artifact: MediaArtifact) -> str:
+        """The relative URL this orchestrator serves the artifact at.
+
+        Single source of truth for the ``/artifacts/<id>.<ext>`` mapping, reused by
+        the runtime/API/UI so they agree on the extension. Already-remote
+        artifacts (https://) are returned verbatim.
+        """
+        if artifact.uri.startswith(("http://", "https://")):
+            return artifact.uri
+        ext = _EXT.get(artifact.media_type, "bin")
+        return f"/artifacts/{artifact.id}.{ext}"
+
+    def payload(self, artifact: MediaArtifact) -> dict:
+        """JSON-safe artifact dict + a ``url`` the browser can load it from."""
+        d = artifact.model_dump(mode="json")
+        d["url"] = self.url_path(artifact)
+        return d
+
     def public_url(self, artifact: MediaArtifact) -> str:
-        """A URL a remote service can fetch. Requires ``PUBLIC_BASE_URL``.
+        """An absolute URL a remote service can fetch. Requires ``PUBLIC_BASE_URL``.
 
         Already-remote artifacts (https://) are returned as-is.
         """
@@ -112,8 +130,7 @@ class ArtifactStore:
                 "PUBLIC_BASE_URL is not set; cannot expose a fetchable URL for "
                 f"artifact {artifact.id}. Required for remote skills (e.g. Runway)."
             )
-        ext = _EXT.get(artifact.media_type, "bin")
-        return f"{self.public_base_url}/artifacts/{artifact.id}.{ext}"
+        return f"{self.public_base_url}{self.url_path(artifact)}"
 
 
 def _split_data_url(data_url: str) -> tuple[str | None, str]:

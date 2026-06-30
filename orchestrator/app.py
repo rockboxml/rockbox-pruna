@@ -18,20 +18,28 @@ from __future__ import annotations
 import os
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import config
-from .artifacts import ArtifactStore
-from .entities import Character, EntityStore, Location, make_entity
+from .api import router as runs_router
+from .entities import Character, Location
 from .models import EntityType, Goal
 from .planner.base import PlanValidationError
-from .service import get_planner, make_plan, run_goal
-from .skills import REGISTRY
+from .service import make_plan, run_goal
+from .state import ENTITIES, REGISTRY, RUNS, STORE
 
 app = FastAPI(title="rockbox-orchestrator", version="0.1.0")
 
-STORE = ArtifactStore()
-ENTITIES = EntityStore()
+# Allow the Vite dev server to call the API directly during development.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=False,
+)
 
 
 @app.get("/health")
@@ -106,3 +114,14 @@ def get_artifact(name: str) -> FileResponse:
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="artifact not found")
     return FileResponse(path)
+
+
+# -- streaming run API (POST /runs, SSE events, HITL respond, uploads) -----
+app.include_router(runs_router)
+
+
+# -- built Studio SPA (prod) ----------------------------------------------
+# Mount LAST so the catch-all does not shadow the API routes above.
+_DIST = os.path.join(os.path.dirname(__file__), "..", "studio", "dist")
+if os.path.isdir(_DIST):
+    app.mount("/", StaticFiles(directory=_DIST, html=True), name="studio")

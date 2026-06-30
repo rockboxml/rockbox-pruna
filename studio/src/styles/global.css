@@ -1,0 +1,64 @@
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--cream);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .display { font-family: var(--font-display); color: var(--cream); font-weight: 500; }
+h1 { font-size: 30px; letter-spacing: -0.01em; }
+
+.label {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  font-size: 11px;
+  color: var(--muted);
+}
+.mono { font-family: var(--font-mono); }
+.timestamp { font-family: var(--font-mono); font-size: 11px; color: var(--faint); letter-spacing: 0.04em; }
+
+.panel {
+  background: var(--panel-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-panel);
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+  color: var(--cream);
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill);
+  padding: 8px 16px;
+  font-size: 13px;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+button:hover { border-color: var(--amber); }
+button.primary { background: var(--amber); color: var(--ink); border-color: var(--amber); font-weight: 600; }
+button.primary:hover { background: var(--amber-bright); }
+button.ghost:hover { color: var(--amber); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+input, textarea {
+  font-family: var(--font-body);
+  color: var(--cream);
+  background: transparent;
+  border: none;
+  outline: none;
+  width: 100%;
+  resize: none;
+}
+textarea::placeholder, input::placeholder { color: var(--faint); }
+
+.app-shell { max-width: 1040px; margin: 0 auto; padding: 48px 28px 96px; }
+
+a { color: var(--amber); }

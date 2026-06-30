@@ -125,7 +125,8 @@ class FakeImageSkill(Skill):
 
     async def run(self, inputs, params, entities, store: ArtifactStore):
         prompt = build_prompt(params, entities)
-        digest = hashlib.sha256(prompt.encode()).digest()
+        seed = params.get("seed")
+        digest = hashlib.sha256(f"{prompt}|{seed}".encode()).digest()
         png = solid_png(digest[0], digest[1], digest[2])
-        artifact = store.put_bytes(png, MediaType.IMAGE, meta={"prompt": prompt})
+        artifact = store.put_bytes(png, MediaType.IMAGE, meta={"prompt": prompt, "seed": seed})
         return {"image": artifact}
