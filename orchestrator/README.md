@@ -11,6 +11,11 @@ It is the planning/composition layer that replaces a hard-coded, linear pipeline
 with one that **dynamically assembles workflows** — the power of Runway-style
 workflows without node-based editing.
 
+## Design documents
+
+- [`docs/goal-driven-workflow-spec.md`](../docs/goal-driven-workflow-spec.md) — the normative, language-agnostic specification of the architecture (contracts, invariants, and spec-driven acceptance criteria), for reimplementing or conformance-testing the model.
+- [`docs/architecture-guide.md`](../docs/architecture-guide.md) — a prose guide to the methodology, its novel aspects, its divergence from linear pipelines, and how to apply it to extend a linear framework such as OpenMontage.
+
 ## How it works
 
 ```
