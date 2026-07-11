@@ -48,3 +48,14 @@ docker run --gpus all -p 8000:8000 \
 curl -X POST localhost:8000/generate -H 'content-type: application/json' \
   -d '{"prompt":"a neon city at dusk","num_inference_steps":4}'
 ```
+
+## Orchestrator (goal-driven media workflows)
+
+This server is one backing skill of a larger **goal-driven media-production
+orchestrator** that lives in [`orchestrator/`](orchestrator/README.md). Given a
+natural-language goal and a cast of Characters/Locations, it resolves each entity
+to a consistency baseline, plans a typed DAG of composable agent skills
+(modeled on `runwayml/skills`), and runs it — threading the cast through every
+step for cross-modal continuity. It is a separate CPU service that calls this
+Pruna server (and optionally Runway) over HTTP. See
+[`orchestrator/README.md`](orchestrator/README.md).

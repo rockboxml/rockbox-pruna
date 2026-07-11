@@ -1,0 +1,33 @@
+/* Design tokens extracted from the Studio mockup: warm-dark editorial palette,
+   Fraunces / DM Sans / JetBrains Mono, hairline borders, small radii. */
+:root {
+  --bg: #0e0d0b;
+  --panel-1: #16140e;
+  --panel-2: #1d1a12;
+  --panel-3: #2a261c;
+  --edge: #37301f;
+  --cream: #f2ece0;
+  --muted: #9b9384;
+  --faint: #6b6456;
+  --amber: #c9964e;
+  --amber-bright: #d6a55d;
+  --amber-deep: #8a6d3c;
+  --sand: #b8a07a;
+  --teal: #7fa39b;
+  --mauve: #a98bb0;
+  --ink: #1a1206;
+  --hairline: rgba(242, 236, 224, 0.1);
+  --hairline-strong: rgba(242, 236, 224, 0.16);
+
+  --r-panel: 9px;
+  --r-tile: 7px;
+  --r-pill: 16px;
+
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --ok: var(--teal);
+  --warn: var(--amber);
+  --err: #c56a55;
+}
