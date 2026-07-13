@@ -33,6 +33,18 @@ PUBLIC_BASE_URL: str | None = (
     _clean(os.environ["PUBLIC_BASE_URL"]) if os.environ.get("PUBLIC_BASE_URL") else None
 )
 
+# Browser origins allowed to call the API (CORS). Only needed when the Studio SPA
+# is served from a DIFFERENT origin than the API (a split deploy). The
+# single-service deploy serves the SPA and API on one origin, so this is unused
+# there. Comma-separated; defaults to the Vite dev server.
+ALLOWED_ORIGINS: list[str] = [
+    o.strip()
+    for o in os.environ.get(
+        "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+    ).split(",")
+    if o.strip()
+]
+
 # Claude model for the LLM planner.
 ANTHROPIC_MODEL: str = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8")
 

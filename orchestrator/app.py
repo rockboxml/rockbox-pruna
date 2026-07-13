@@ -32,10 +32,12 @@ from .state import ENTITIES, REGISTRY, RUNS, STORE
 
 app = FastAPI(title="rockbox-orchestrator", version="0.1.0")
 
-# Allow the Vite dev server to call the API directly during development.
+# Allow configured browser origins to call the API (CORS). Defaults to the Vite
+# dev server; set ALLOWED_ORIGINS for a split deploy where the SPA is hosted on a
+# different origin than this API. Not needed for the single-service deploy.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=False,
