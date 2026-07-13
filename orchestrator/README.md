@@ -104,6 +104,14 @@ uvicorn orchestrator.app:app --port 8001         # http://localhost:8001
 Image rendering works fully offline (fakes are valid PNGs); video/audio playback
 needs a real backend (`PRUNA_URL`, or `RUNWAYML_API_SECRET` + `PUBLIC_BASE_URL`).
 
+**Wiring the SPA to the API.** By default the SPA calls the API with **same-origin
+relative URLs** — correct for local dev (the Vite proxy) and the single-service
+deploy (FastAPI serves the SPA and API together), with **no configuration**. For a
+**split deploy** (SPA hosted separately from the API), build the SPA with
+`VITE_API_BASE_URL=https://<api-host>` (a Docker build arg on `deploy/Dockerfile`,
+or `studio/.env` — see `studio/.env.example`), and set `ALLOWED_ORIGINS` on the API
+to the SPA's origin so CORS permits it.
+
 ## Configuration
 
 | Var | Default | Meaning |

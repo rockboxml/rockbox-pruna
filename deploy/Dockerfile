@@ -9,6 +9,11 @@
 # --- stage 1: build the Studio SPA ---
 FROM node:22-slim AS studio
 WORKDIR /studio
+# Optional: bake an API base URL into the SPA for a SPLIT deploy (SPA and API on
+# different origins). Leave empty for the single-service deploy — the SPA then
+# uses same-origin relative URLs.
+ARG VITE_API_BASE_URL=""
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 COPY studio/package.json studio/package-lock.json ./
 RUN npm ci
 COPY studio/ ./

@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef } from "react";
 import type { RunEvent, EventType } from "../api/types";
+import { apiUrl } from "../api/config";
 import { initialRunState, runReducer, type RunState } from "../state/runReducer";
 
 const EVENT_TYPES: EventType[] = [
@@ -33,7 +34,7 @@ export function useRunStream(runId: string | null): RunState {
     const lastSeq = () => (seen.current.size ? Math.max(...seen.current) : 0);
 
     const open = () => {
-      es = new EventSource(`/runs/${runId}/events?lastEventId=${lastSeq()}`);
+      es = new EventSource(apiUrl(`/runs/${runId}/events?lastEventId=${lastSeq()}`));
       const onMsg = (e: MessageEvent) => {
         const ev = JSON.parse(e.data) as RunEvent;
         if (seen.current.has(ev.seq)) return;
